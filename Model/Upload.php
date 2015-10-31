@@ -1,4 +1,4 @@
 <?php  
-class Upload extends FileUploadAppModel {
+class Upload extends JqueryFileUploadAppModel {
 }
 ?>

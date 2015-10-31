@@ -1,6 +1,6 @@
 <?php
 /*
- * jQuery File Upload Plugin PHP Class 5.9.2
+ * jQuery File Upload Plugin PHP Class 8.4.1
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2010, Sebastian Tschan
@@ -9,13 +9,11 @@
  * Licensed under the MIT license:
  * http://www.opensource.org/licenses/MIT
  */
-App::uses('Component', 'Controller');
-class UploadComponent extends Component
-{
-	public $components = array('Session','Auth');
-	public $helpers = array('Session','Auth');
 
-  protected $options;
+class UploadHandler
+{
+
+    protected $options;
 
     // PHP File Upload error message codes:
     // http://php.net/manual/en/features.file-upload.errors.php
@@ -42,37 +40,21 @@ class UploadComponent extends Component
 
     protected $image_objects = array();
 
-    function __construct( ComponentCollection $collection, $options = null ) {
-
-       $this->response = array();
-
-       $error_messages = array(); $initialize = true;
-
-		   $this->UploadModel = ClassRegistry::init('JqueryFileUpload.Upload');
-
-       $this->options = array(
-        'script_url' => Router::url('/', true).'jquery_file_upload/handler',
-        'upload_dir' => WWW_ROOT.'jquploads/files/',
-        'upload_url' => '/app/webroot/jquploads/files/',
-         'param_name' => 'files',
-         'user_dirs' => false,
-          // Set the following option to 'POST', if your server does not support
-          // DELETE requests. This is a parameter sent to the client:
-
-          /*JqueryFileUpload CakePHP 2.5.5 - BOC */
-
-          'alias' => null,
-          'foreign_key'=>null,
-
-          'model'=>'Jploads',
-
-          'delete_type' => 'POST', //DELETE wont work in MVC
-
-          /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-
-          'access_control_allow_origin' => '*',
-          'access_control_allow_credentials' => false,
-          'access_control_allow_methods' => array(
+    function __construct($options = null, $initialize = true, $error_messages = null) {
+        $this->response = array();
+        $this->options = array(
+            'script_url' => $this->get_full_url().'/'.basename($this->get_server_var('SCRIPT_NAME')),
+            'upload_dir' => dirname($this->get_server_var('SCRIPT_FILENAME')).'/files/',
+            'upload_url' => $this->get_full_url().'/files/',
+            'user_dirs' => false,
+            'mkdir_mode' => 0755,
+            'param_name' => 'files',
+            // Set the following option to 'POST', if your server does not support
+            // DELETE requests. This is a parameter sent to the client:
+            'delete_type' => 'DELETE',
+            'access_control_allow_origin' => '*',
+            'access_control_allow_credentials' => false,
+            'access_control_allow_methods' => array(
                 'OPTIONS',
                 'HEAD',
                 'GET',
@@ -177,33 +159,36 @@ class UploadComponent extends Component
             ),
             'print_response' => true
         );
-
-        /*JqueryFileUpload CakePHP 2.5.5 - BOC */
-
-        if(isset($_REQUEST['alias'])) $this->options['alias'] = $_REQUEST['alias'];
-        if(isset($_REQUEST['foreign_key'])) $this->options['foreign_key'] = $_REQUEST['foreign_key'];
-
-        if($this->options['alias']) {
-           $this->options['upload_dir'] = $this->options['upload_dir'] . strtolower(Inflector::pluralize($this->options['alias'])).  DS;
-           $this->options['upload_url'] = $this->options['upload_url'] . strtolower(Inflector::pluralize($this->options['alias'])) .  DS;
-        }
-
-        if($this->options['foreign_key']) {
-           $this->options['upload_dir'] = $this->options['upload_dir'] . $this->options['foreign_key'] .  DS;
-           $this->options['upload_url'] = $this->options['upload_url'] . $this->options['foreign_key'] .  DS;
-          if (!is_dir($this->options['upload_dir'])) {
-              mkdir($this->options['upload_dir'], $this->options['mkdir_mode'], true);
-              mkdir($this->options['upload_dir'] . 'thumbnail', $this->options['mkdir_mode'], true);
-          }
-        }
-
-        /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-
         if ($options) {
             $this->options = $options + $this->options;
         }
         if ($error_messages) {
             $this->error_messages = $error_messages + $this->error_messages;
+        }
+        if ($initialize) {
+            $this->initialize();
+        }
+    }
+
+    protected function initialize() {
+        switch ($this->get_server_var('REQUEST_METHOD')) {
+            case 'OPTIONS':
+            case 'HEAD':
+                $this->head();
+                break;
+            case 'GET':
+                $this->get($this->options['print_response']);
+                break;
+            case 'PATCH':
+            case 'PUT':
+            case 'POST':
+                $this->post($this->options['print_response']);
+                break;
+            case 'DELETE':
+                $this->delete($this->options['print_response']);
+                break;
+            default:
+                $this->header('HTTP/1.1 405 Method Not Allowed');
         }
     }
 
@@ -260,14 +245,6 @@ class UploadComponent extends Component
             if ($version) {
                 $url .= '&version='.rawurlencode($version);
             }
-            /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-            if($this->options['alias']) {
-              $url .= '&alias=' . $this->options['alias'];
-            }
-            if($this->options['foreign_key']) {
-              $url .= '&foreign_key=' . $this->options['foreign_key'];
-            }
-            /*JqueryFileUpload CakePHP 2.5.5 - EOC */
             return $url.'&download=1';
         }
         if (empty($version)) {
@@ -292,16 +269,6 @@ class UploadComponent extends Component
         if ($file->deleteType !== 'DELETE') {
             $file->deleteUrl .= '&_method=DELETE';
         }
-
-        /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-        if($this->options['alias']) {
-          $file->deleteUrl .= '&alias=' . $this->options['alias'];
-        }
-        if($this->options['foreign_key']) {
-          $file->deleteUrl .= '&foreign_key=' . $this->options['foreign_key'];
-        }
-        /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-
         if ($this->options['access_control_allow_credentials']) {
             $file->deleteWithCredentials = true;
         }
@@ -364,18 +331,6 @@ class UploadComponent extends Component
         if (!is_dir($upload_dir)) {
             return array();
         }
-
-		/*JqueryFileUpload CakePHP 2.5.5 - BOC */
-        /*if(isset($this->options['model']))  {
-          //pr($this->options['model']);
-          $alias = ClassRegistry::init($this->options['model']);
-          if(is_object($alias)) {
-            //
-          }
-          exit;
-        }*/
-		/*JqueryFileUpload CakePHP 2.5.5 - EOC */
-
         return array_values(array_filter(array_map(
             array($this, $iteration_method),
             scandir($upload_dir)
@@ -1113,27 +1068,7 @@ class UploadComponent extends Component
             $append_file = $content_range && is_file($file_path) &&
                 $file->size > $this->get_file_size($file_path);
             if ($uploaded_file && is_uploaded_file($uploaded_file)) {
-
                 // multipart/formdata uploads (POST method uploads)
-                /*JqueryFileUpload CakePHP 2.5.5 - BOC */
-
-                /*if($this->options['model']) {
-                  $model = ClassRegistry::init($this->options['model']);
-                  //File information to save on database
-                  $data = array(
-                    'alias' => $this->options['alias'],
-                    'foreign_key' => $this->options['foreign_key'],
-                    'name' => $file->name,
-                    'filename' => $file->name,
-                    'size' => $size,
-                    'type' => $file->type,
-                  );
-                  // Save on database
-                  $model->save( $data );
-                }*/
-
-                /*JqueryFileUpload CakePHP 2.5.5 - EOC */
-
                 if ($append_file) {
                     file_put_contents(
                         $file_path,
@@ -1205,7 +1140,7 @@ class UploadComponent extends Component
         return @$_GET[$id];
     }
 
-    public function get_server_var($id) {
+    protected function get_server_var($id) {
         return @$_SERVER[$id];
     }
 
@@ -1369,7 +1304,7 @@ class UploadComponent extends Component
         return $this->generate_response($response, $print_response);
     }
 
-    public function post($print_response = true, $options = array()) {
+    public function post($print_response = true) {
         if ($this->get_query_param('_method') === 'DELETE') {
             return $this->delete($print_response);
         }
@@ -1435,13 +1370,6 @@ class UploadComponent extends Component
             $file_path = $this->get_upload_path($file_name);
             $success = is_file($file_path) && $file_name[0] !== '.' && unlink($file_path);
             if ($success) {
-				/*JqueryFileUpload CakePHP 2.5.5 - BOC */
-                /*if($this->options['model']) {
-                  $model = ClassRegistry::init($this->options['model']);
-                  $upload = $model->findByName( $file_name );
-                  $model->delete( $upload[$model->alias]['id'] );
-                }*/
-				/*JqueryFileUpload CakePHP 2.5.5 - EOC */
                 foreach($this->options['image_versions'] as $version => $options) {
                     if (!empty($version)) {
                         $file = $this->get_upload_path($file_name, $version);
@@ -1455,4 +1383,5 @@ class UploadComponent extends Component
         }
         return $this->generate_response($response, $print_response);
     }
+
 }

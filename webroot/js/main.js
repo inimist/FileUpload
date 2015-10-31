@@ -1,5 +1,5 @@
 /*
- * jQuery File Upload Plugin JS Example 6.7
+ * jQuery File Upload Plugin JS Example 8.9.1
  * https://github.com/blueimp/jQuery-File-Upload
  *
  * Copyright 2010, Sebastian Tschan
@@ -9,17 +9,20 @@
  * http://www.opensource.org/licenses/MIT
  */
 
-/*jslint nomen: true, unparam: true, regexp: true */
-/*global $, window, document */
+/* global $, window */
 
 $(function () {
     'use strict';
 
     // Initialize the jQuery File Upload widget:
-    $('#fileupload').fileupload();
+    $('#fileupload, .jqueryfileupload').fileupload({
+        // Uncomment the following to send cross-domain cookies:
+        xhrFields: extraparams(),
+        url: '/jquery_file_upload/handler'
+    });
 
     // Enable iframe cross-domain access via redirect option:
-    $('#fileupload').fileupload(
+    $('#fileupload, .jqueryfileupload').fileupload(
         'option',
         'redirect',
         window.location.href.replace(
@@ -28,27 +31,17 @@ $(function () {
         )
     );
 
-    if (window.location.hostname === 'blueimp.github.com') {
+    if (window.location.hostname === 'blueimp.github.io') {
         // Demo settings:
-        $('#fileupload').fileupload('option', {
+        $('#fileupload, .jqueryfileupload').fileupload('option', {
             url: '//jquery-file-upload.appspot.com/',
-            maxFileSize: 5000000,
-            acceptFileTypes: /(\.|\/)(gif|jpe?g|png)$/i,
-            process: [
-                {
-                    action: 'load',
-                    fileTypes: /^image\/(gif|jpeg|png)$/,
-                    maxFileSize: 20000000 // 20MB
-                },
-                {
-                    action: 'resize',
-                    maxWidth: 1440,
-                    maxHeight: 900
-                },
-                {
-                    action: 'save'
-                }
-            ]
+            // Enable image resizing, except for Android and Opera,
+            // which actually support image resizing, but fail to
+            // send Blob objects via XHR requests:
+            disableImageResize: /Android(?!.*Chrome)|Opera/
+                .test(window.navigator.userAgent),
+            maxFileSize: 999000,
+            acceptFileTypes: /(\.|\/)(gif|jpe?g|png)$/i
         });
         // Upload server status check for browsers with CORS support:
         if ($.support.cors) {
@@ -56,23 +49,43 @@ $(function () {
                 url: '//jquery-file-upload.appspot.com/',
                 type: 'HEAD'
             }).fail(function () {
-                $('<span class="alert alert-error"/>')
+                $('<div class="alert alert-danger"/>')
                     .text('Upload server currently unavailable - ' +
                             new Date())
-                    .appendTo('#fileupload');
+                    .appendTo('#fileupload, .jqueryfileupload');
             });
         }
     } else {
         // Load existing files:
-        $('#fileupload').each(function () {
-            var that = this;
-            $.getJSON(this.action, function (result) {
-                if (result && result.length) {
-                    $(that).fileupload('option', 'done')
-                        .call(that, null, {result: result});
-                }
-            });
+        $('#fileupload, .jqueryfileupload').addClass('fileupload-processing');
+        //onsole.log($('#fileupload').fileupload('option', 'url'));
+
+        
+
+        $.ajax({
+            // Uncomment the following to send cross-domain cookies:
+            //xhrFields: {withCredentials: true},
+            url: $('#fileupload, .jqueryfileupload').fileupload('option', 'url'),
+            data: extraparams(),
+            dataType: 'json',
+            context: $('#fileupload, .jqueryfileupload')[0]
+        }).always(function () {
+            $(this).removeClass('fileupload-processing');
+        }).done(function (result) {
+            $(this).fileupload('option', 'done')
+                .call(this, $.Event('done'), {result: result});
         });
     }
 
 });
+
+function extraparams()  {
+  var extravars = []; var extraparams = '';
+  if($('#fileupload input.extrafields, .jqueryfileupload input.extrafields').length>0) {
+    $('#fileupload input.extrafields, .jqueryfileupload input.extrafields').each(function(n, o)  {
+      extravars.push($(o).attr('name') + '=' + $(o).val());
+    })
+    extraparams = extravars.join('&');
+  }
+  return extraparams;
+}

@@ -1,5 +1,5 @@
 <?php
-class FileUploadController extends FileUploadAppController {
+class JqueryFileUploadController extends JqueryFileUploadAppController {
 
 	function beforeFilter(){
 		parent::beforeFilter();
